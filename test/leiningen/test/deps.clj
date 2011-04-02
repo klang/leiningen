@@ -5,7 +5,8 @@
         [clojure.java.io :only [file]]
         [leiningen.util.file :only [delete-file-recursively]]
         [leiningen.test.helper :only [sample-project dev-deps-project
-                                      m2-dir with-no-log]]))
+				      symlink-project
+				      m2-dir with-no-log]]))
 
 (defn lib-populated? [project re]
   (some #(re-find re (.getName %))
@@ -52,3 +53,18 @@
         (is (thrown? Exception (with-no-log (deps rel-repo-snaps-dep))))))
     (finally
        (delete-file-recursively (file (:root sample-project) "lib")))))
+
+(defn- symlink?
+  "Returns true if arg is a symlink"
+  [arg]
+  (not (= (.getCanonicalPath arg) (.getAbsolutePath arg))))
+
+(deftest test-deps-symlink
+  (delete-file-recursively (file (:root symlink-project) "lib") true)
+  (deps symlink-project)
+  (let [jars (set (map #(.getName %)
+                       (.listFiles (file (:root symlink-project) "lib"))))
+	links (set (map #(if (symlink? %) (.getName %))
+                       (.listFiles (file (:root symlink-project) "lib"))))]
+    (doseq [j ["janino-2.5.15.jar" "hooke-1.0.2.jar" "clojure-1.2.0.jar"]]
+      (is (and (jars j) (links j))))))
